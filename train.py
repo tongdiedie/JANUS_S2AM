@@ -169,6 +169,17 @@ def main(_run, _config, _log):
                 loss = prompt_loss + sim_loss + contrastive_loss
 
             # Compute gradient and do SGD step.
+            # Some medical few-shot episodes may contain no valid foreground slice.
+            # In that case FoB/JANUS returns a constant zero loss, which has no grad_fn.
+            # Skip such invalid episodes instead of crashing.
+            if not torch.is_tensor(loss):
+                loss = torch.as_tensor(loss, device=device, dtype=torch.float32)
+
+            if not loss.requires_grad:
+                _log.warning("Skip one invalid episode because loss has no gradient. "
+                             "This usually means the sampled query/support mask contains no foreground.")
+                continue
+
             for param in model.parameters():
                 param.grad = None
 

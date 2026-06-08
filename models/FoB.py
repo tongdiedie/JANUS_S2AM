@@ -371,7 +371,8 @@ class FewShotSeg(nn.Module):
             qry_labels = self.pre_process(qry_labels).long()
 
         img_size = supp_imgs[0][0].shape[-2:]
-        zero = torch.zeros(1, device=self.device)
+        # Use a differentiable zero so fallback losses still have a grad_fn.
+        zero = img_fts.sum() * 0.0
 
         supp_mask = torch.stack([torch.stack(way, dim=0) for way in supp_mask], dim=0).view(
             supp_bs, self.n_ways, self.n_shots, *img_size
@@ -451,6 +452,7 @@ class FewShotSeg(nn.Module):
         qkps = torch.stack(qkps).squeeze(2)
 
         # SPR/IDR uses grid_sample, so point coordinates must be normalized to [0, 1].
+        h, w = int(img_size[0]), int(img_size[1])
         xy_scale = torch.tensor([max(w - 1, 1), max(h - 1, 1)], device=self.device, dtype=torch.float32)
         pred_point_t = torch.from_numpy(pred_point).to(self.device).float().unsqueeze(0) / xy_scale
         pred_point = self.refine(qkps.unsqueeze(0), pred_point_t, skps.unsqueeze(0), qry_fts[:, 0]).squeeze(0)
