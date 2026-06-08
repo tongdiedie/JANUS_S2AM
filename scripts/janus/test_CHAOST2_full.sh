@@ -92,9 +92,15 @@ for CV_FOLD in "${FOLDS_ARR[@]}"; do
       encoder_pretrained_weights=$ENCODER_WEIGHTS \
       janus_enabled=True \
       janus_mutual_prompting=True \
-      janus_hard_background=True \
-      janus_curvature_allocation=True \
-      janus_sam_refinement=True \
+      janus_fg_points=${JANUS_FG_POINTS:-1} \
+      janus_base_bg_points=${JANUS_BASE_BG_POINTS:-3} \
+      janus_sam_refine_points=${JANUS_SAM_REFINE_POINTS:-1} \
+      janus_sam_mined_points=${JANUS_SAM_MINED_POINTS:-1} \
+      janus_sam_mined_min_distance=${JANUS_SAM_MINED_MIN_DISTANCE:-20} \
+      janus_sam_mined_avoid_radius=${JANUS_SAM_MINED_AVOID_RADIUS:-28} \
+      janus_hard_background=${JANUS_HARD_BACKGROUND:-False} \
+      janus_curvature_allocation=${JANUS_CURVATURE_ALLOCATION:-False} \
+      janus_sam_refinement=${JANUS_SAM_REFINEMENT:-True} \
       path.CHAOST2.data_dir=$DATA_DIR \
       path.log_dir=$LOGDIR
   done
