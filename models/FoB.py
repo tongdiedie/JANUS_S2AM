@@ -372,7 +372,7 @@ class FewShotSeg(nn.Module):
 
         img_size = supp_imgs[0][0].shape[-2:]
         # Use a differentiable zero so fallback losses still have a grad_fn.
-        zero = img_fts.sum() * 0.0
+        zero = next(self.parameters()).sum() * 0.0
 
         supp_mask = torch.stack([torch.stack(way, dim=0) for way in supp_mask], dim=0).view(
             supp_bs, self.n_ways, self.n_shots, *img_size
