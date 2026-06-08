@@ -16,7 +16,7 @@ except ImportError:
             super().__init__()
         def forward(self, *args, **kwargs):
             device = args[0].device if args and hasattr(args[0], "device") else torch.device("cpu")
-            return torch.zeros(1, device=device)
+            return next(self.parameters()).sum() * 0.0
 
 from .janus_s2am import (
     allocate_background_points,
@@ -475,8 +475,14 @@ class FewShotSeg(nn.Module):
             foreground_loss = self.nllloss(log_qry_pred_coarse, qry_labels)
 
             for skp in skps:
-                cos_sim = F.cosine_similarity(spt_fg_proto.transpose(1, 0), skp.unsqueeze(-1), dim=0)
-                rac_loss += torch.clamp(0.5 + cos_sim, min=0) / self.num_points
+                cos_sim = F.cosine_similarity(
+                    spt_fg_proto.transpose(1, 0),
+                    skp.unsqueeze(-1),
+                    dim=0
+                )
+                # cosine_similarity may return shape [1]; reduce it to a scalar before accumulating.
+                # Also avoid in-place += because it can interact badly with autograd and broadcasting.
+                rac_loss = rac_loss + torch.clamp(0.5 + cos_sim, min=0).mean() / self.num_points
 
             if self.use_hard_background and self.hbg_loss_weight > 0:
                 hbg_loss = self._hard_background_contrastive_loss(
@@ -511,7 +517,7 @@ class FewShotSeg(nn.Module):
         """Margin loss that pushes mined hard background away from foreground prototype."""
         device = qry_fts.device
         if qry_labels is None:
-            return torch.zeros(1, device=device)
+            return next(self.parameters()).sum() * 0.0
 
         labels = (qry_labels == 0).float()  # true background only; ignore labels are excluded.
         if labels.dim() == 2:
@@ -525,7 +531,7 @@ class FewShotSeg(nn.Module):
         if torch.sum(score > 0) < 5:
             score = hbg_score * labels
         if torch.sum(score > 0) < 5:
-            return torch.zeros(1, device=device)
+            return next(self.parameters()).sum() * 0.0
 
         flat = score.flatten()
         positive = flat[flat > 0]
@@ -533,14 +539,14 @@ class FewShotSeg(nn.Module):
         thresh = torch.quantile(positive, q) if positive.numel() > 1 else positive.min()
         hard_mask = (score >= thresh).float()
         if hard_mask.sum() < 1:
-            return torch.zeros(1, device=device)
+            return next(self.parameters()).sum() * 0.0
 
         hbg_feat = self.getFeatures(qry_fts, hard_mask)
         fg_proto = fg_proto.to(device).expand_as(hbg_feat)
         bg_proto = bg_proto.to(device).expand_as(hbg_feat)
         sim_fg = F.cosine_similarity(hbg_feat, fg_proto, dim=1)
         sim_bg = F.cosine_similarity(hbg_feat, bg_proto, dim=1)
-        return torch.relu(sim_fg - sim_bg + self.hbg_margin).mean()
+        return torch.relu(sim_fg - sim_bg + self.hbg_margin).mean().reshape(())
 
     def _fallback_prompt_bundle(self, img_size):
         h, w = int(img_size[0]), int(img_size[1])
