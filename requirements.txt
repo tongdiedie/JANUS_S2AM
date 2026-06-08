@@ -1,0 +1,18 @@
+# Core versions used by the original FoB codebase; adjust CUDA-specific wheels to your system.
+torch>=1.10
+torchvision>=0.11
+numpy>=1.22
+opencv-python>=4.5
+Pillow>=8.1.1
+sacred>=0.8.2
+yacs>=0.1.8
+scikit-image>=0.18
+SimpleITK>=1.2
+nibabel>=2.5
+tqdm>=4.62
+scikit-learn>=1.0
+json5>=0.8.5
+jupyter>=1.0.0
+cython>=0.29
+segment-anything
+info-nce-pytorch
