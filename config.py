@@ -2,6 +2,7 @@
 Experiment configuration file
 Extended from config file from original PANet Repository
 """
+
 import glob
 import itertools
 import os
@@ -12,16 +13,19 @@ from sacred.utils import apply_backspaces_and_linefeeds
 from utils import *
 from yacs.config import CfgNode as CN
 
-sacred.SETTINGS['CONFIG']['READ_ONLY_CONFIG'] = False
-sacred.SETTINGS.CAPTURE_MODE = 'no'
+sacred.SETTINGS["CONFIG"]["READ_ONLY_CONFIG"] = False
+sacred.SETTINGS.CAPTURE_MODE = "no"
 
 ex = Experiment("FSMIS")
 ex.captured_out_filter = apply_backspaces_and_linefeeds
 
 ###### Set up source folder ######
-source_folders = ['.', './dataloaders', './models', './utils']
-sources_to_save = list(itertools.chain.from_iterable(
-    [glob.glob(f'{folder}/*.py') for folder in source_folders]))
+source_folders = [".", "./dataloaders", "./models", "./utils"]
+sources_to_save = list(
+    itertools.chain.from_iterable(
+        [glob.glob(f"{folder}/*.py") for folder in source_folders]
+    )
+)
 for source_file in sources_to_save:
     ex.add_source_file(source_file)
 
@@ -32,23 +36,28 @@ def cfg():
     seed = 2021
     gpu_id = 0
     num_workers = 0  # 0 for debugging.
-    mode = 'train'
+    mode = "train"
 
     ## dataset
-    dataset = 'MR'  # i.e. abdominal MRI - 'CHAOST2'; cardiac MRI - CMR
+    dataset = "MR"  # i.e. abdominal MRI - 'CHAOST2'; cardiac MRI - CMR
     isic_setting = 2  # valid when dataset == 'isic': 1 for fold-json protocol, 2 for PATNet-style class split
-    isic_setting_1_base_path = os.path.join('data', 'ISIC_setting_1')
-    isic_setting_2_base_path = os.path.join('data', 'isic', 'combine')
-    exclude_label = [1,2,3,4]  # None, for not excluding test labels; Setting 1: None, Setting 2: True
+    isic_setting_1_base_path = os.path.join("data", "ISIC_setting_1")
+    isic_setting_2_base_path = os.path.join("data", "isic", "combine")
+    exclude_label = [
+        1,
+        2,
+        3,
+        4,
+    ]  # None, for not excluding test labels; Setting 1: None, Setting 2: True
     # 1 for Liver, 2 for RK, 3 for LK, 4 for Spleen in 'CHAOST2'
-    if dataset == 'Cardiac':
+    if dataset == "Cardiac":
         n_sv = 1000
     else:
         n_sv = 5000
     min_size = 200
     max_slices = 3
     use_gt = False  # True - use ground truth as training label, False - use supervoxel as training label
-    eval_fold = 0   # (0-4) for 5-fold cross-validation
+    eval_fold = 0  # (0-4) for 5-fold cross-validation
     test_label = [1, 4]  # for evaluation
     supp_idx = 0  # choose which case as the support set for evaluation, (0-4) for 'CHAOST2', (0-7) for 'CMR'
     n_part = 3  # for evaluation, i.e. 3 chunks
@@ -72,12 +81,12 @@ def cfg():
     reload_model_path = None
 
     # Encoder checkpoint. Use 'COCO', 'resnet101', 'none', or a concrete .pth path.
-    encoder_pretrained_weights = 'COCO'
+    encoder_pretrained_weights = "COCO"
 
     # SAM checkpoint. Override this in scripts or with Sacred CLI:
     #   sam_checkpoint=./checkpoints/sam_vit_h_4b8939.pth
-    sam_checkpoint = './checkpoints/sam_vit_h_4b8939.pth'
-    sam_model_type = 'vit_h'
+    sam_checkpoint = "./checkpoints/sam_vit_h_4b8939.pth"
+    sam_model_type = "vit_h"
 
     # JANUS-S²AM prompt options. The defaults enable the full method.
     janus_enabled = True
@@ -126,34 +135,30 @@ def cfg():
     janus_hbg_train_pred_threshold = 0.50
     janus_hbg_train_top_quantile = 0.90
 
-    optim_type = 'sgd'
+    optim_type = "sgd"
     optim = {
-        'lr': 1e-4,
-        'momentum': 0.9,
-        'weight_decay': 0.00005,  # 0.0005
+        "lr": 1e-4,
+        "momentum": 0.9,
+        "weight_decay": 0.00005,  # 0.0005
     }
 
-    dataset_tag = f'{dataset}_setting{isic_setting}' if dataset == 'isic' else dataset
+    dataset_tag = f"{dataset}_setting{isic_setting}" if dataset == "isic" else dataset
 
-    exp_str = '_'.join(
-        [mode]
-        + [dataset_tag]
-        + [f'cv{eval_fold}'])
+    exp_str = "_".join([mode] + [dataset_tag] + [f"cv{eval_fold}"])
 
     path = {
-        'log_dir': './runs',
-        'CHAOST2': {'data_dir': './data/CHAOST2'},
-        'SABS': {'data_dir': './data/SABS'},
+        "log_dir": "./runs",
+        "CHAOST2": {"data_dir": "./data/CHAOST2"},
+        "SABS": {"data_dir": "./data/SABS"},
     }
-
-
-
 
 
 @ex.config_hook
 def add_observer(config, command_name, logger):
     """A hook fucntion to add observer"""
     exp_name = f'{ex.path}_{config["exp_str"]}'
-    observer = FileStorageObserver.create(os.path.join(config['path']['log_dir'], exp_name))
+    observer = FileStorageObserver.create(
+        os.path.join(config["path"]["log_dir"], exp_name)
+    )
     ex.observers.append(observer)
     return config

@@ -27,23 +27,35 @@ class SAM(nn.Module):
         device: Optional[torch.device] = None,
     ):
         super().__init__()
-        self.device = device if device is not None else torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = (
+            device
+            if device is not None
+            else torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        )
         self.get_sam(sam_pretrained_path, model_type=model_type)
 
     def get_sam(self, checkpoint_path: str, model_type: str = "vit_h"):
         if checkpoint_path is None or str(checkpoint_path).strip() == "":
-            raise ValueError("sam_checkpoint is empty. Please pass sam_checkpoint=/path/to/sam_vit_h_4b8939.pth")
+            raise ValueError(
+                "sam_checkpoint is empty. Please pass sam_checkpoint=/path/to/sam_vit_h_4b8939.pth"
+            )
         if not os.path.exists(checkpoint_path):
             raise FileNotFoundError(
                 f"SAM checkpoint not found: {checkpoint_path}. Set sam_checkpoint in config or scripts."
             )
         print(f"Using SAM model type {model_type}")
-        self.sam = sam_model_registry[model_type](checkpoint=checkpoint_path).eval().to(self.device)
+        self.sam = (
+            sam_model_registry[model_type](checkpoint=checkpoint_path)
+            .eval()
+            .to(self.device)
+        )
         self.predictor = SamPredictor(self.sam)
         self.sam.requires_grad_(False)
 
     @staticmethod
-    def _best_mask_index(scores: np.ndarray, config: Optional[Dict[str, Any]] = None) -> int:
+    def _best_mask_index(
+        scores: np.ndarray, config: Optional[Dict[str, Any]] = None
+    ) -> int:
         dataset = cfg_get(config, "dataset", "")
         if dataset == "isic" and len(scores) > 1:
             # FoB's original evaluation uses the second SAM mask for Skin-DS.
@@ -51,12 +63,22 @@ class SAM(nn.Module):
         return int(np.argmax(scores)) if scores is not None and len(scores) > 0 else 0
 
     @staticmethod
-    def _stack_point_prompts(pos_points=None, neg_points=None) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    def _stack_point_prompts(
+        pos_points=None, neg_points=None
+    ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
         all_points = []
         all_labels = []
 
-        pos = squeeze_points(pos_points) if pos_points is not None else np.zeros((0, 2), dtype=np.float32)
-        neg = squeeze_points(neg_points) if neg_points is not None else np.zeros((0, 2), dtype=np.float32)
+        pos = (
+            squeeze_points(pos_points)
+            if pos_points is not None
+            else np.zeros((0, 2), dtype=np.float32)
+        )
+        neg = (
+            squeeze_points(neg_points)
+            if neg_points is not None
+            else np.zeros((0, 2), dtype=np.float32)
+        )
         if len(pos) > 0:
             all_points.append(pos)
             all_labels.extend([1] * len(pos))
@@ -90,7 +112,15 @@ class SAM(nn.Module):
         best_idx = min(self._best_mask_index(scores, config), len(masks) - 1)
         return masks[best_idx], scores[best_idx], low_res_logits[best_idx], best_idx
 
-    def predict_w_points_bbox(self, sam_input_points, bboxes, sam_neg_input_points, qry_img, config=None, return_logits=False):
+    def predict_w_points_bbox(
+        self,
+        sam_input_points,
+        bboxes,
+        sam_neg_input_points,
+        qry_img,
+        config=None,
+        return_logits=False,
+    ):
         """Backward-compatible API used by the original FoB code."""
         assert qry_img.max() <= 255 and qry_img.min() >= 0 and qry_img.dtype == np.uint8
         self.predictor.set_image(qry_img)
@@ -125,14 +155,25 @@ class SAM(nn.Module):
             prompt_meta = pos_point
             pos = prompt_meta.get("pos_points", None)
             neg = prompt_meta.get("neg_points", None)
-        elif isinstance(pos_point, (tuple, list)) and len(pos_point) == 2 and neg_point is None:
+        elif (
+            isinstance(pos_point, (tuple, list))
+            and len(pos_point) == 2
+            and neg_point is None
+        ):
             # Original FewShotSeg returned (neg_point, pos_point).
             neg, pos = pos_point
         else:
             pos, neg = pos_point, neg_point
         return ensure_points_array(pos), ensure_points_array(neg), prompt_meta
 
-    def forward(self, query_image, pos_point=None, neg_point=None, config=None, return_logits=False):
+    def forward(
+        self,
+        query_image,
+        pos_point=None,
+        neg_point=None,
+        config=None,
+        return_logits=False,
+    ):
         """Run SAM with optional JANUS-S²AM two-pass corrective prompting.
 
         ``pos_point`` may be a JANUS prompt dict returned by ``FewShotSeg``.  In that
@@ -140,10 +181,16 @@ class SAM(nn.Module):
         negative prompts from the first mask and re-runs SAM with ``mask_input``.
         """
         query_image_np = self.pre_process(query_image)
-        assert query_image_np.max() <= 255 and query_image_np.min() >= 0 and query_image_np.dtype == np.uint8
+        assert (
+            query_image_np.max() <= 255
+            and query_image_np.min() >= 0
+            and query_image_np.dtype == np.uint8
+        )
         self.predictor.set_image(query_image_np)
 
-        pos_points, neg_points, prompt_meta = self._parse_prompt_input(pos_point, neg_point)
+        pos_points, neg_points, prompt_meta = self._parse_prompt_input(
+            pos_point, neg_point
+        )
         mask0, score0, low_res0, _ = self._predict_once(
             pos_points=pos_points,
             neg_points=neg_points,
@@ -152,7 +199,10 @@ class SAM(nn.Module):
             return_logits=False,
         )
 
-        use_refine = bool(cfg_get(config, "janus_sam_refinement", True)) and prompt_meta is not None
+        use_refine = (
+            bool(cfg_get(config, "janus_sam_refinement", True))
+            and prompt_meta is not None
+        )
         if not use_refine:
             return mask0
 
@@ -163,11 +213,17 @@ class SAM(nn.Module):
             min_distance=int(cfg_get(config, "janus_sam_mined_min_distance", 14)),
             avoid_radius=int(cfg_get(config, "janus_sam_mined_avoid_radius", 18)),
         )
-        corrective_points = merge_points(prompt_meta.get("sam_refine_points", None), mined_points, image_shape=mask0.shape)
+        corrective_points = merge_points(
+            prompt_meta.get("sam_refine_points", None),
+            mined_points,
+            image_shape=mask0.shape,
+        )
         if corrective_points.shape[1] == 0:
             return mask0
 
-        refined_neg_points = merge_points(neg_points, corrective_points, image_shape=mask0.shape)
+        refined_neg_points = merge_points(
+            neg_points, corrective_points, image_shape=mask0.shape
+        )
         mask_input = low_res0[None, :, :]
         mask1, score1, _, _ = self._predict_once(
             pos_points=pos_points,

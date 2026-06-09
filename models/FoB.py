@@ -7,16 +7,25 @@ import cv2
 import numpy as np
 import torchvision.transforms as transforms
 import math
+
 try:
     from info_nce import InfoNCE
 except ImportError:
+
     class InfoNCE(nn.Module):
         """Fallback placeholder; JANUS-S²AM/FoB does not call InfoNCE directly."""
+
         def __init__(self, *args, **kwargs):
             super().__init__()
+
         def forward(self, *args, **kwargs):
-            device = args[0].device if args and hasattr(args[0], "device") else torch.device("cpu")
+            device = (
+                args[0].device
+                if args and hasattr(args[0], "device")
+                else torch.device("cpu")
+            )
             return next(self.parameters()).sum() * 0.0
+
 
 from .janus_s2am import (
     allocate_background_points,
@@ -38,12 +47,9 @@ class IDR(nn.Module):
     def __init__(self, in_dim, num_points=10):
         super().__init__()
         self.num_points = num_points
-        self.offset_pred = nn.Linear(in_dim * 2, num_points * 2)  
+        self.offset_pred = nn.Linear(in_dim * 2, num_points * 2)
         self.scale_mod = nn.Sequential(
-            nn.Linear(in_dim * 2, in_dim),
-            nn.ReLU(),
-            nn.Linear(in_dim, 1),
-            nn.Sigmoid()
+            nn.Linear(in_dim * 2, in_dim), nn.ReLU(), nn.Linear(in_dim, 1), nn.Sigmoid()
         )
         self.attn_weight = nn.Linear(in_dim, num_points)
 
@@ -51,26 +57,28 @@ class IDR(nn.Module):
         B, K, C = query_feats.shape
         H, W = feat_map.shape[2:]
 
-        offset_input = torch.cat([query_feats, gcn_out], dim=-1)  
+        offset_input = torch.cat([query_feats, gcn_out], dim=-1)
         offset = self.offset_pred(offset_input).view(B, K, self.num_points, 2)
 
         scale_input = torch.cat([query_feats, support_feats], dim=-1)
         scale = 2 * self.scale_mod(scale_input).view(B, K, 1, 1)
 
-        coords = query_points.unsqueeze(2) + scale * offset            
+        coords = query_points.unsqueeze(2) + scale * offset
         coords_grid = coords.view(B, 1, K * self.num_points, 2)
-        grid = coords_grid * 2 - 1                                     
+        grid = coords_grid * 2 - 1
 
-        feat_sampled = F.grid_sample(feat_map, grid, mode='bilinear', align_corners=True)
+        feat_sampled = F.grid_sample(
+            feat_map, grid, mode="bilinear", align_corners=True
+        )
         feat_sampled = feat_sampled.view(B, feat_map.size(1), K, self.num_points)
 
-        weight = self.attn_weight(query_feats)                         
+        weight = self.attn_weight(query_feats)
         weight = F.softmax(weight, dim=-1)
 
-        feat_weighted = (feat_sampled * weight.unsqueeze(1)).sum(dim=-1)  
-        feat_weighted = feat_weighted.transpose(1, 2)                     
+        feat_weighted = (feat_sampled * weight.unsqueeze(1)).sum(dim=-1)
+        feat_weighted = feat_weighted.transpose(1, 2)
 
-        new_qp = (coords * weight.unsqueeze(-1)).sum(dim=2)         
+        new_qp = (coords * weight.unsqueeze(-1)).sum(dim=2)
 
         return feat_weighted, new_qp
 
@@ -82,9 +90,7 @@ class SPG(nn.Module):
         self.W_phi = nn.Linear(in_dim, in_dim)
         self.W = nn.Linear(in_dim, in_dim, bias=False)
         self.mlp_mod = nn.Sequential(
-            nn.Linear(in_dim, in_dim),
-            nn.ReLU(),
-            nn.Linear(in_dim, in_dim)
+            nn.Linear(in_dim, in_dim), nn.ReLU(), nn.Linear(in_dim, in_dim)
         )
         self.use_learnable_alpha = use_learnable_alpha
         if use_learnable_alpha:
@@ -102,7 +108,7 @@ class SPG(nn.Module):
         B, K, C = query_feats.shape
         theta = self.W_theta(support_feats)
         phi = self.W_phi(support_feats)
-        A_dyn = torch.matmul(theta, phi.transpose(-1, -2)) / (C ** 0.5)
+        A_dyn = torch.matmul(theta, phi.transpose(-1, -2)) / (C**0.5)
         A_dyn = F.softmax(A_dyn, dim=-1)
 
         A_ring = self.build_ring_adj(K, B, query_feats.device)
@@ -149,7 +155,6 @@ class SPR(nn.Module):
         return query_points
 
 
-
 class Head(nn.Module):
     def __init__(self, in_channels, out_size):
         super(Head, self).__init__()
@@ -159,7 +164,8 @@ class Head(nn.Module):
                 out_channels=in_channels,
                 kernel_size=1,
                 stride=1,
-                padding=0 ),
+                padding=0,
+            ),
             nn.InstanceNorm2d(512, affine=True),
             nn.ReLU(inplace=True),
             nn.Conv2d(
@@ -167,15 +173,16 @@ class Head(nn.Module):
                 out_channels=10,
                 kernel_size=1,
                 stride=1,
-                padding=0)
+                padding=0,
+            ),
         )
-        self.upsample = nn.Upsample(size=out_size, mode='bilinear', align_corners=False)
+        self.upsample = nn.Upsample(size=out_size, mode="bilinear", align_corners=False)
+
     def forward(self, x):
-        heatmap = self.head(x)  
-        heatmap = self.upsample(heatmap)  
+        heatmap = self.head(x)
+        heatmap = self.upsample(heatmap)
         return heatmap
-    
-    
+
 
 class PromptMatching(nn.Module):
 
@@ -184,9 +191,10 @@ class PromptMatching(nn.Module):
         self.support_proj = nn.Linear(hidden_dim, proj_dim)
         self.query_proj = nn.Linear(hidden_dim, proj_dim)
         self.self_update_proj = nn.Sequential(
-            nn.Linear(hidden_dim, self_update_dim), 
+            nn.Linear(hidden_dim, self_update_dim),
             nn.ReLU(),
-            nn.Linear(self_update_dim, hidden_dim))
+            nn.Linear(self_update_dim, hidden_dim),
+        )
         self.tanh = nn.Tanh()
         self.dim = hidden_dim
         self.model_init()
@@ -199,18 +207,18 @@ class PromptMatching(nn.Module):
             spatial_shape: h, w
         """
         h, w = spatial_shape
-        query = query.transpose(0, 1)  
-        support = support.transpose(0, 1) 
+        query = query.transpose(0, 1)
+        support = support.transpose(0, 1)
 
-        fs_proj = self.support_proj(support)  
-        fq_proj = self.query_proj(query)  
-        channel_reweight = self.tanh(self.self_update_proj(fs_proj))  
+        fs_proj = self.support_proj(support)
+        fq_proj = self.query_proj(query)
+        channel_reweight = self.tanh(self.self_update_proj(fs_proj))
 
-        fs_feat = (channel_reweight + 1) * fs_proj  
-        Phi = torch.bmm(fq_proj, fs_feat.transpose(1, 2)) 
-        Phi = Phi.transpose(1, 2).reshape(-1, h, w)  
+        fs_feat = (channel_reweight + 1) * fs_proj
+        Phi = torch.bmm(fq_proj, fs_feat.transpose(1, 2))
+        Phi = Phi.transpose(1, 2).reshape(-1, h, w)
         return Phi
-    
+
     def model_init(self):
         for m in self.modules():
             if isinstance(m, torch.nn.Conv2d):
@@ -231,24 +239,28 @@ class MaskedAttention(nn.Module):
         self.ffn = nn.Sequential(
             nn.Linear(feature_dim, feature_dim * ffn_expansion),
             nn.ReLU(),
-            nn.Linear(feature_dim * ffn_expansion, feature_dim)
+            nn.Linear(feature_dim * ffn_expansion, feature_dim),
         )
         self.norm2 = nn.LayerNorm(feature_dim)
 
         self.matching_head = PromptMatching(feature_dim, feature_dim, feature_dim * 2)
         self.conv = nn.Conv2d(10, 1, kernel_size=1, stride=1, padding=0)
         self.learnable_pos = nn.Parameter(torch.randn(1, feature_dim, 64, 64))
-        self.register_buffer("sin_pos", self.get_sinusoid_encoding_table(10, feature_dim), persistent=False)
+        self.register_buffer(
+            "sin_pos",
+            self.get_sinusoid_encoding_table(10, feature_dim),
+            persistent=False,
+        )
 
     def get_sinusoid_encoding_table(self, K, C):
-        position = torch.arange(K).unsqueeze(1)                 # [K, 1]
+        position = torch.arange(K).unsqueeze(1)  # [K, 1]
         div_term = torch.exp(torch.arange(0, C, 2) * (-math.log(10000.0) / C))  # [C/2]
 
         pe = torch.zeros(K, C)
-        pe[:, 0::2] = torch.sin(position * div_term)  
-        pe[:, 1::2] = torch.cos(position * div_term)  
-        return pe  
-    
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        return pe
+
     def forward(self, skps, qry_fts):
         """
         skps: [N, C]
@@ -266,12 +278,14 @@ class MaskedAttention(nn.Module):
         else:
             sin_pos = self.sin_pos[:N].to(skps.device)
         skps = skps + sin_pos
-        sim = self.matching_head(qry_fts.view(B, C, L).permute(2, 0, 1), skps.unsqueeze(1), (H, W))  # [B, L, N]
-        
+        sim = self.matching_head(
+            qry_fts.view(B, C, L).permute(2, 0, 1), skps.unsqueeze(1), (H, W)
+        )  # [B, L, N]
+
         mask = F.relu(self.conv(sim))  # [1, L, 1]
         x = qry_fts.view(B, C, L).permute(0, 2, 1)  # [B, L, C]
         mask_flat = mask.view(1, L)
-    
+
         attn_bias = mask_flat.transpose(1, 0) + mask_flat  # [L, L]
 
         attn_out, attn = self.mha(x, x, x, attn_mask=attn_bias)  # [B, L, C]
@@ -283,10 +297,11 @@ class MaskedAttention(nn.Module):
 
         return out, sim
 
+
 class JointsMSELoss(nn.Module):
     def __init__(self, use_target_weight):
         super(JointsMSELoss, self).__init__()
-        self.criterion = nn.MSELoss(reduction='mean')
+        self.criterion = nn.MSELoss(reduction="mean")
         self.use_target_weight = use_target_weight
 
     def forward(self, output, target, target_weight):
@@ -302,12 +317,13 @@ class JointsMSELoss(nn.Module):
             if self.use_target_weight:
                 loss += 0.5 * self.criterion(
                     heatmap_pred.mul(target_weight[:, idx]),
-                    heatmap_gt.mul(target_weight[:, idx])
+                    heatmap_gt.mul(target_weight[:, idx]),
                 )
             else:
                 loss += 0.5 * self.criterion(heatmap_pred, heatmap_gt)
 
         return loss / num_joints
+
 
 class FewShotSeg(nn.Module):
 
@@ -315,34 +331,45 @@ class FewShotSeg(nn.Module):
         super().__init__()
 
         self.args = args if args is not None else {}
-        self.encoder = Res101Encoder(replace_stride_with_dilation=[True, True, False],
-                                    pretrained_weights=cfg_get(self.args, "encoder_pretrained_weights", "COCO"))
+        self.encoder = Res101Encoder(
+            replace_stride_with_dilation=[True, True, False],
+            pretrained_weights=cfg_get(self.args, "encoder_pretrained_weights", "COCO"),
+        )
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.scaler = 20.0
         self.num_points = int(cfg_get(self.args, "janus_base_prompt_points", 10))
         self.feature_dim = 512
-        self.pre_process = transforms.Compose([
-            transforms.Resize((256, 256)),
-        ])
+        self.pre_process = transforms.Compose(
+            [
+                transforms.Resize((256, 256)),
+            ]
+        )
         self.head = Head(self.feature_dim, (256, 256))
         self.criterion = JointsMSELoss(use_target_weight=False)
-        self.masked_attention = MaskedAttention(self.feature_dim, num_heads=1, ffn_expansion=1)
+        self.masked_attention = MaskedAttention(
+            self.feature_dim, num_heads=1, ffn_expansion=1
+        )
         self.L2_loss = nn.MSELoss()
         class_weight = torch.FloatTensor([0.1, 1.0])
         self.nllloss = nn.NLLLoss(ignore_index=255, weight=class_weight)
         self.refine = SPR(self.feature_dim, num_heads=1, num_points=8)
-        self.InfoNCE = InfoNCE(negative_mode='unpaired')
+        self.InfoNCE = InfoNCE(negative_mode="unpaired")
 
         # JANUS-S²AM switches.  They are plain rules, not learnable parameters.
         self.janus_enabled = bool(cfg_get(self.args, "janus_enabled", True))
-        self.use_mutual_prompting = bool(cfg_get(self.args, "janus_mutual_prompting", True))
-        self.use_hard_background = bool(cfg_get(self.args, "janus_hard_background", True))
-        self.use_curvature_allocation = bool(cfg_get(self.args, "janus_curvature_allocation", True))
+        self.use_mutual_prompting = bool(
+            cfg_get(self.args, "janus_mutual_prompting", True)
+        )
+        self.use_hard_background = bool(
+            cfg_get(self.args, "janus_hard_background", True)
+        )
+        self.use_curvature_allocation = bool(
+            cfg_get(self.args, "janus_curvature_allocation", True)
+        )
         self.hbg_loss_weight = float(cfg_get(self.args, "janus_hbg_loss_weight", 0.10))
         self.hbg_margin = float(cfg_get(self.args, "janus_hbg_margin", 0.20))
 
     def forward(self, supp_imgs, supp_mask, qry_imgs, qry_labels, train):
-
         """
         Args:
             supp_imgs: way x shot x [B x 3 x H x W]
@@ -374,23 +401,24 @@ class FewShotSeg(nn.Module):
         # Use a differentiable zero so fallback losses still have a grad_fn.
         zero = next(self.parameters()).sum() * 0.0
 
-        supp_mask = torch.stack([torch.stack(way, dim=0) for way in supp_mask], dim=0).view(
-            supp_bs, self.n_ways, self.n_shots, *img_size
-        )
+        supp_mask = torch.stack(
+            [torch.stack(way, dim=0) for way in supp_mask], dim=0
+        ).view(supp_bs, self.n_ways, self.n_shots, *img_size)
 
         imgs_concat = torch.cat(
-            [torch.cat(way, dim=0) for way in supp_imgs] + [torch.cat(qry_imgs, dim=0)], dim=0
+            [torch.cat(way, dim=0) for way in supp_imgs] + [torch.cat(qry_imgs, dim=0)],
+            dim=0,
         )
         img_fts, tao = self.encoder(imgs_concat)
 
-        supp_fts = img_fts[:self.n_ways * self.n_shots * supp_bs].view(
+        supp_fts = img_fts[: self.n_ways * self.n_shots * supp_bs].view(
             supp_bs, self.n_ways, self.n_shots, -1, *img_fts.shape[-2:]
         )
-        qry_fts = img_fts[self.n_ways * self.n_shots * supp_bs:].view(
+        qry_fts = img_fts[self.n_ways * self.n_shots * supp_bs :].view(
             qry_bs, self.n_queries, -1, *img_fts.shape[-2:]
         )
 
-        self.t = tao[self.n_ways * self.n_shots * supp_bs:]
+        self.t = tao[self.n_ways * self.n_shots * supp_bs :]
         self.thresh_pred = [self.t for _ in range(self.n_ways)]
 
         heatmap_loss = zero.clone()
@@ -399,15 +427,19 @@ class FewShotSeg(nn.Module):
         l2_loss = zero.clone()
         hbg_loss = zero.clone()
 
-        has_support = bool((supp_mask[:, 0, 0].max() > 0.).item())
-        has_query_gt = qry_labels is not None and bool((qry_labels.max() > 0.).item())
+        has_support = bool((supp_mask[:, 0, 0].max() > 0.0).item())
+        has_query_gt = qry_labels is not None and bool((qry_labels.max() > 0.0).item())
         if not has_support or (is_train and not has_query_gt):
             if is_train:
-                return self._loss_dict(heatmap_loss, l2_loss, rac_loss, foreground_loss, hbg_loss)
+                return self._loss_dict(
+                    heatmap_loss, l2_loss, rac_loss, foreground_loss, hbg_loss
+                )
             return self._fallback_prompt_bundle(img_size)
 
         # ***************************** Background Prompt Prototype Construction *****************************
-        points_spt = self.uniform_sample_contour(supp_mask[:, 0, 0], num_keypoints=self.num_points)
+        points_spt = self.uniform_sample_contour(
+            supp_mask[:, 0, 0], num_keypoints=self.num_points
+        )
         heatmaps_spt = self.generate_keypoint_heatmaps(img_size, points_spt)
         heatmaps_spt = torch.from_numpy(heatmaps_spt).to(self.device)
         skps = []
@@ -418,19 +450,36 @@ class FewShotSeg(nn.Module):
         skps = torch.stack(skps).squeeze(2)  # [K, C]
 
         # ***************************** Foreground/Background Prototype Competition *****************************
-        spt_fg_fts = [[self.getFeatures(supp_fts[:, way, shot], supp_mask[:, way, shot])
-                       for shot in range(self.n_shots)] for way in range(self.n_ways)]
+        spt_fg_fts = [
+            [
+                self.getFeatures(supp_fts[:, way, shot], supp_mask[:, way, shot])
+                for shot in range(self.n_shots)
+            ]
+            for way in range(self.n_ways)
+        ]
         spt_fg_proto = self.getPrototype(spt_fg_fts)[0]  # [1, 512]
 
-        spt_bg_fts = [[self.getFeatures(supp_fts[:, way, shot], (1.0 - supp_mask[:, way, shot]).clamp(0, 1))
-                       for shot in range(self.n_shots)] for way in range(self.n_ways)]
+        spt_bg_fts = [
+            [
+                self.getFeatures(
+                    supp_fts[:, way, shot], (1.0 - supp_mask[:, way, shot]).clamp(0, 1)
+                )
+                for shot in range(self.n_shots)
+            ]
+            for way in range(self.n_ways)
+        ]
         spt_bg_proto = self.getPrototype(spt_bg_fts)[0]  # [1, 512]
 
         qry_pred = torch.stack(
-            [self.getPred(qry_fts[:, way], spt_fg_proto, self.thresh_pred[way])
-             for way in range(self.n_ways)], dim=1
+            [
+                self.getPred(qry_fts[:, way], spt_fg_proto, self.thresh_pred[way])
+                for way in range(self.n_ways)
+            ],
+            dim=1,
         )  # B x Wa x H' x W'
-        qry_pred_coarse = F.interpolate(qry_pred, size=img_size, mode='bilinear', align_corners=True)
+        qry_pred_coarse = F.interpolate(
+            qry_pred, size=img_size, mode="bilinear", align_corners=True
+        )
 
         mutual_maps = compute_mutual_similarity_maps(
             qry_fts[:, 0], spt_fg_proto, spt_bg_proto, out_size=img_size
@@ -446,50 +495,85 @@ class FewShotSeg(nn.Module):
         heatmaps_qry = self.generate_keypoint_heatmaps(img_size, pred_point)
         qkps = []
         for i in range(self.num_points):
-            qkp = [[self.getFeatures(qry_fts[:, 0], torch.from_numpy(heatmaps_qry[i]).to(self.device))]]
+            qkp = [
+                [
+                    self.getFeatures(
+                        qry_fts[:, 0], torch.from_numpy(heatmaps_qry[i]).to(self.device)
+                    )
+                ]
+            ]
             qkp = self.getPrototype(qkp)[0].transpose(0, 1)
             qkps.append(qkp)
         qkps = torch.stack(qkps).squeeze(2)
 
         # SPR/IDR uses grid_sample, so point coordinates must be normalized to [0, 1].
         h, w = int(img_size[0]), int(img_size[1])
-        xy_scale = torch.tensor([max(w - 1, 1), max(h - 1, 1)], device=self.device, dtype=torch.float32)
-        pred_point_t = torch.from_numpy(pred_point).to(self.device).float().unsqueeze(0) / xy_scale
-        pred_point = self.refine(qkps.unsqueeze(0), pred_point_t, skps.unsqueeze(0), qry_fts[:, 0]).squeeze(0)
-        pred_point = (pred_point.squeeze(0).clamp(0, 1) * xy_scale).detach().cpu().numpy()
+        xy_scale = torch.tensor(
+            [max(w - 1, 1), max(h - 1, 1)], device=self.device, dtype=torch.float32
+        )
+        pred_point_t = (
+            torch.from_numpy(pred_point).to(self.device).float().unsqueeze(0) / xy_scale
+        )
+        pred_point = self.refine(
+            qkps.unsqueeze(0), pred_point_t, skps.unsqueeze(0), qry_fts[:, 0]
+        ).squeeze(0)
+        pred_point = (
+            (pred_point.squeeze(0).clamp(0, 1) * xy_scale).detach().cpu().numpy()
+        )
 
         # ************************************* Optimization *************************************
         if is_train:
-            gt = self.uniform_sample_contour(qry_labels.float(), num_keypoints=self.num_points)
+            gt = self.uniform_sample_contour(
+                qry_labels.float(), num_keypoints=self.num_points
+            )
             heatmaps_gt = self.generate_keypoint_heatmaps(img_size, gt)
             heatmaps_gt_t = torch.from_numpy(heatmaps_gt).unsqueeze(0).to(self.device)
             heatmap_loss = self.criterion(heatmap, heatmaps_gt_t, None)
-            sim_heat_up = F.interpolate(sim_heat.unsqueeze(0), size=img_size, mode='bilinear', align_corners=True)
-            heatmap_loss = heatmap_loss + self.criterion(sim_heat_up, heatmaps_gt_t, None)
+            sim_heat_up = F.interpolate(
+                sim_heat.unsqueeze(0),
+                size=img_size,
+                mode="bilinear",
+                align_corners=True,
+            )
+            heatmap_loss = heatmap_loss + self.criterion(
+                sim_heat_up, heatmaps_gt_t, None
+            )
 
-            l2_loss = self.L2_loss(torch.from_numpy(pred_point).float().to(self.device),
-                                   torch.from_numpy(gt).float().to(self.device))
+            l2_loss = self.L2_loss(
+                torch.from_numpy(pred_point).float().to(self.device),
+                torch.from_numpy(gt).float().to(self.device),
+            )
 
             qry_pred_safe = qry_pred_coarse.clamp(1e-6, 1 - 1e-6)
-            log_qry_pred_coarse = torch.cat([1 - qry_pred_safe, qry_pred_safe], dim=1).log()
+            log_qry_pred_coarse = torch.cat(
+                [1 - qry_pred_safe, qry_pred_safe], dim=1
+            ).log()
             foreground_loss = self.nllloss(log_qry_pred_coarse, qry_labels)
 
             for skp in skps:
                 cos_sim = F.cosine_similarity(
-                    spt_fg_proto.transpose(1, 0),
-                    skp.unsqueeze(-1),
-                    dim=0
+                    spt_fg_proto.transpose(1, 0), skp.unsqueeze(-1), dim=0
                 )
                 # cosine_similarity may return shape [1]; reduce it to a scalar before accumulating.
                 # Also avoid in-place += because it can interact badly with autograd and broadcasting.
-                rac_loss = rac_loss + torch.clamp(0.5 + cos_sim, min=0).mean() / self.num_points
+                rac_loss = (
+                    rac_loss
+                    + torch.clamp(0.5 + cos_sim, min=0).mean() / self.num_points
+                )
 
             if self.use_hard_background and self.hbg_loss_weight > 0:
                 hbg_loss = self._hard_background_contrastive_loss(
-                    qry_fts[:, 0], qry_labels, spt_fg_proto, spt_bg_proto, qry_pred_coarse, mutual_maps
+                    qry_fts[:, 0],
+                    qry_labels,
+                    spt_fg_proto,
+                    spt_bg_proto,
+                    qry_pred_coarse,
+                    mutual_maps,
                 )
 
-            return self._loss_dict(heatmap_loss, l2_loss, rac_loss, foreground_loss, hbg_loss)
+            return self._loss_dict(
+                heatmap_loss, l2_loss, rac_loss, foreground_loss, hbg_loss
+            )
 
         # ************************************* Prompt output for SAM *************************************
         return self._build_prompt_bundle(
@@ -513,19 +597,31 @@ class FewShotSeg(nn.Module):
             "weighted_hbg_loss": weighted_hbg,
         }
 
-    def _hard_background_contrastive_loss(self, qry_fts, qry_labels, fg_proto, bg_proto, qry_pred_coarse, mutual_maps):
+    def _hard_background_contrastive_loss(
+        self, qry_fts, qry_labels, fg_proto, bg_proto, qry_pred_coarse, mutual_maps
+    ):
         """Margin loss that pushes mined hard background away from foreground prototype."""
         device = qry_fts.device
         if qry_labels is None:
             return next(self.parameters()).sum() * 0.0
 
-        labels = (qry_labels == 0).float()  # true background only; ignore labels are excluded.
+        labels = (
+            qry_labels == 0
+        ).float()  # true background only; ignore labels are excluded.
         if labels.dim() == 2:
             labels = labels.unsqueeze(0)
-        coarse = (qry_pred_coarse.detach().squeeze(1) > float(cfg_get(self.args, "janus_hbg_train_pred_threshold", 0.50))).float()
+        coarse = (
+            qry_pred_coarse.detach().squeeze(1)
+            > float(cfg_get(self.args, "janus_hbg_train_pred_threshold", 0.50))
+        ).float()
         hbg_score = mutual_maps["h_bg"].detach().squeeze(1)
         if hbg_score.shape[-2:] != labels.shape[-2:]:
-            hbg_score = F.interpolate(hbg_score.unsqueeze(1), size=labels.shape[-2:], mode="bilinear", align_corners=True).squeeze(1)
+            hbg_score = F.interpolate(
+                hbg_score.unsqueeze(1),
+                size=labels.shape[-2:],
+                mode="bilinear",
+                align_corners=True,
+            ).squeeze(1)
 
         score = hbg_score * labels * coarse
         if torch.sum(score > 0) < 5:
@@ -563,7 +659,9 @@ class FewShotSeg(nn.Module):
             "shape_complexity": 1.0,
         }
 
-    def _build_prompt_bundle(self, base_bg_points, qry_pred_coarse, mutual_maps, support_mask, img_size):
+    def _build_prompt_bundle(
+        self, base_bg_points, qry_pred_coarse, mutual_maps, support_mask, img_size
+    ):
         """Assemble positive foreground and hard negative background prompts."""
         h, w = int(img_size[0]), int(img_size[1])
         coarse_np = qry_pred_coarse[0, 0].detach().cpu().numpy()
@@ -589,8 +687,14 @@ class FewShotSeg(nn.Module):
             pos_pts = original_pos_pts
 
         support_np = support_mask[0].detach().cpu().numpy()
-        query_shape_mask = coarse_np > float(cfg_get(self.args, "janus_shape_mask_threshold", 0.50))
-        curvature_source = query_shape_mask.astype(np.float32) if np.any(query_shape_mask) else support_np
+        query_shape_mask = coarse_np > float(
+            cfg_get(self.args, "janus_shape_mask_threshold", 0.50)
+        )
+        curvature_source = (
+            query_shape_mask.astype(np.float32)
+            if np.any(query_shape_mask)
+            else support_np
+        )
         curv_np = curvature_score(
             curvature_source,
             radius=int(cfg_get(self.args, "janus_curvature_radius", 7)),
@@ -611,7 +715,11 @@ class FewShotSeg(nn.Module):
         if self.janus_enabled and self.use_hard_background:
             hard_ratio = float(cfg_get(self.args, "janus_hard_bg_ratio", 0.40))
             hard_budget = max(1, int(round(total_bg * hard_ratio)))
-            hard_budget = min(hard_budget, int(cfg_get(self.args, "janus_hard_bg_max_points", 8)), total_bg)
+            hard_budget = min(
+                hard_budget,
+                int(cfg_get(self.args, "janus_hard_bg_max_points", 8)),
+                total_bg,
+            )
         else:
             hard_budget = 0
         base_budget = max(0, total_bg - hard_budget)
@@ -621,7 +729,11 @@ class FewShotSeg(nn.Module):
             fg_np,
             bg_np,
             coarse_mask=coarse_np,
-            curvature=curv_np if (self.janus_enabled and self.use_curvature_allocation) else None,
+            curvature=(
+                curv_np
+                if (self.janus_enabled and self.use_curvature_allocation)
+                else None
+            ),
             boundary_weight=float(cfg_get(self.args, "janus_boundary_weight", 0.35)),
             curvature_weight=float(cfg_get(self.args, "janus_curvature_weight", 0.35)),
             bg_weight=float(cfg_get(self.args, "janus_bg_score_weight", 0.25)),
@@ -636,14 +748,18 @@ class FewShotSeg(nn.Module):
                 foreground_points=pos_pts,
                 min_distance=int(cfg_get(self.args, "janus_hbg_min_distance", 14)),
                 avoid_radius=int(cfg_get(self.args, "janus_hbg_avoid_fg_radius", 18)),
-                prefer_mask_boundary=bool(cfg_get(self.args, "janus_hbg_prefer_boundary", True)),
+                prefer_mask_boundary=bool(
+                    cfg_get(self.args, "janus_hbg_prefer_boundary", True)
+                ),
             )
         else:
             hard_neg_pts = np.zeros((0, 2), dtype=np.float32)
 
         neg_points = merge_points(base_neg_pts, hard_neg_pts, image_shape=(h, w))
         pos_points = ensure_points_array(pos_pts)
-        sam_refine_points = ensure_points_array(hard_neg_pts[:int(cfg_get(self.args, "janus_sam_refine_points", 4))])
+        sam_refine_points = ensure_points_array(
+            hard_neg_pts[: int(cfg_get(self.args, "janus_sam_refine_points", 4))]
+        )
 
         return {
             "method": "JANUS-S2AM" if self.janus_enabled else "FoB-compatible",
@@ -682,7 +798,7 @@ class FewShotSeg(nn.Module):
         pred = 1.0 - torch.sigmoid(0.5 * (sim - thresh))
 
         return pred
-    
+
     def getFeatures(self, fts, mask):
         """
         Masked average pooling.
@@ -696,7 +812,9 @@ class FewShotSeg(nn.Module):
         if mask.dim() == 4 and mask.shape[1] == 1:
             mask = mask[:, 0]
         mask = mask.float().to(fts.device)
-        fts = F.interpolate(fts, size=mask.shape[-2:], mode='bilinear', align_corners=False)
+        fts = F.interpolate(
+            fts, size=mask.shape[-2:], mode="bilinear", align_corners=False
+        )
         if mask.shape[0] == 1 and fts.shape[0] > 1:
             mask = mask.expand(fts.shape[0], -1, -1)
         if mask.shape[0] != fts.shape[0]:
@@ -706,7 +824,7 @@ class FewShotSeg(nn.Module):
         denom = mask.sum(dim=(-2, -1)).clamp_min(1e-5)
         masked_fts = torch.sum(fts * mask, dim=(-2, -1)) / denom
         return masked_fts
-    
+
     def getPrototype(self, fg_fts):
         """
         Average the features to obtain the prototype
@@ -719,34 +837,38 @@ class FewShotSeg(nn.Module):
         """
 
         n_ways, n_shots = len(fg_fts), len(fg_fts[0])
-        fg_prototypes = [torch.sum(torch.cat([tr for tr in way], dim=0), dim=0, keepdim=True) / n_shots for way in
-                         fg_fts]  ## concat all fg_fts
+        fg_prototypes = [
+            torch.sum(torch.cat([tr for tr in way], dim=0), dim=0, keepdim=True)
+            / n_shots
+            for way in fg_fts
+        ]  ## concat all fg_fts
 
         return fg_prototypes
 
-    
     def uniform_sample_from_prob(self, pred_map, num_samples=10, threshold=0.96):
         """
         Uniformly samples points from a probability map based on a given threshold.
         Args:
             pred_map (torch.Tensor): The probability map.
-            num_samples (int, optional): The number of samples to be generated. 
-            threshold (float, optional): The threshold value for selecting points. 
+            num_samples (int, optional): The number of samples to be generated.
+            threshold (float, optional): The threshold value for selecting points.
         Returns:
             np.ndarray: An array of sampled points in the format [[x, y]].
         """
 
-        mask = (pred_map > threshold)
+        mask = pred_map > threshold
 
         coordinates = torch.nonzero(mask, as_tuple=False)
-        
 
-        if coordinates.shape[0] == 0: # no point is detected, sample the point with maximum similarity
-            max_idx = torch.argmax(pred_map)  
-            max_position = torch.unravel_index(max_idx, pred_map.shape)   
-            pos_point = np.array([[[max_position[1].item(), max_position[0].item()]]])  # [[x, y]]
+        if (
+            coordinates.shape[0] == 0
+        ):  # no point is detected, sample the point with maximum similarity
+            max_idx = torch.argmax(pred_map)
+            max_position = torch.unravel_index(max_idx, pred_map.shape)
+            pos_point = np.array(
+                [[[max_position[1].item(), max_position[0].item()]]]
+            )  # [[x, y]]
             return pos_point
-        
 
         if coordinates.shape[0] <= num_samples:  # NOT ENOUGH POINTS
             sampled_points = coordinates
@@ -754,24 +876,31 @@ class FewShotSeg(nn.Module):
             indices = np.linspace(0, coordinates.shape[0] - 1, num_samples).astype(int)
             sampled_points = coordinates[indices]
 
-        pos_points = np.array([[[point[1].item(), point[0].item()] for point in sampled_points]])
+        pos_points = np.array(
+            [[[point[1].item(), point[0].item()] for point in sampled_points]]
+        )
 
         return pos_points
 
-
-
     def dilate_label(self, label, kernel_size=9):
-        label_dilate = F.max_pool2d(label, kernel_size=kernel_size, stride=1, padding=kernel_size//2)
+        label_dilate = F.max_pool2d(
+            label, kernel_size=kernel_size, stride=1, padding=kernel_size // 2
+        )
         return label_dilate
+
     def erode_label(self, label, kernel_size=9):
-        label_erode = F.max_pool2d(1 - label, kernel_size=kernel_size, stride=1, padding=kernel_size//2)
+        label_erode = F.max_pool2d(
+            1 - label, kernel_size=kernel_size, stride=1, padding=kernel_size // 2
+        )
         return 1 - label_erode
+
     def get_ring(self, label, kernel_size=9):
 
         label_dilate_9 = self.dilate_label(label, kernel_size)
         label_dilate_5 = self.dilate_label(label, 15)
         ring = label_dilate_9 - label_dilate_5
         return ring
+
     def get_ring_inner(self, label, kernel_size=9):
         label_erode_9 = self.erode_label(label, kernel_size)
         ring = label - label_erode_9
@@ -782,7 +911,7 @@ class FewShotSeg(nn.Module):
         Uniformly samples points along the contour of a binary mask.
         Args:
             mask (ndarray): Binary mask representing the contour.
-            num_keypoints (int): Number of keypoints to sample. 
+            num_keypoints (int): Number of keypoints to sample.
         Returns:
             ndarray: Array of sampled keypoints with shape (num_keypoints, 2).
         """
@@ -791,9 +920,8 @@ class FewShotSeg(nn.Module):
         mask = mask.squeeze().cpu().numpy()
         mask = (mask > 0).astype(np.uint8)
 
-
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
+
         if len(contours) == 0:
             return np.zeros((num_keypoints, 2), dtype=int)
 
@@ -805,11 +933,12 @@ class FewShotSeg(nn.Module):
         for i in range(1, len(contour)):
             pt1 = contour[i - 1][0]
             pt2 = contour[i][0]
-            cumulative_lengths.append(cumulative_lengths[-1] + np.linalg.norm(pt2 - pt1))
+            cumulative_lengths.append(
+                cumulative_lengths[-1] + np.linalg.norm(pt2 - pt1)
+            )
 
         cumulative_lengths = np.array(cumulative_lengths)
         total_length = cumulative_lengths[-1]
-
 
         desired_lengths = np.linspace(0, total_length, num_keypoints)
 
@@ -821,7 +950,9 @@ class FewShotSeg(nn.Module):
             pt1 = contour[idx][0]
             pt2 = contour[idx + 1][0]
 
-            ratio = (d - cumulative_lengths[idx]) / (cumulative_lengths[idx + 1] - cumulative_lengths[idx])
+            ratio = (d - cumulative_lengths[idx]) / (
+                cumulative_lengths[idx + 1] - cumulative_lengths[idx]
+            )
             sampled_point = pt1 + ratio * (pt2 - pt1)
             sampled_points.append(sampled_point)
 
@@ -829,29 +960,28 @@ class FewShotSeg(nn.Module):
         sampled_points = np.round(sampled_points).astype(int)
 
         return sampled_points
-    
-   
 
     def sort_keypoints_clockwise(self, points):
         start_point = points[np.argmin(points[:, 0])]
 
         def calculate_angle(point):
             return np.arctan2(point[1] - start_point[1], point[0] - start_point[0])
-        
+
         sorted_points = sorted(points, key=calculate_angle)
-        
+
         return np.array(sorted_points)
 
-   
     def generate_keypoint_heatmaps(self, image_size, keypoints, sigma=4):
-        '''
+        """
         :param image_size: tuple (height, width) of the heatmap
         :param keypoints: array of shape [num_keypoints, 2], where each row is [x, y]
         :param sigma: standard deviation for the Gaussian
         :return: heatmap for keypoints, with shape [num_keypoints, height, width]
-        '''
+        """
         num_keypoints = keypoints.shape[0]
-        heatmap = np.zeros((num_keypoints, image_size[0], image_size[1]), dtype=np.float32)
+        heatmap = np.zeros(
+            (num_keypoints, image_size[0], image_size[1]), dtype=np.float32
+        )
 
         tmp_size = sigma * 3
         keypoints = self.sort_keypoints_clockwise(keypoints)
@@ -873,7 +1003,7 @@ class FewShotSeg(nn.Module):
             x = np.arange(0, size, 1, np.float32)
             y = x[:, np.newaxis]
             x0 = y0 = size // 2
-            g = np.exp(- ((x - x0) ** 2 + (y - y0) ** 2) / (2 * sigma ** 2))
+            g = np.exp(-((x - x0) ** 2 + (y - y0) ** 2) / (2 * sigma**2))
 
             # Determine the usable Gaussian range
             g_x = max(0, -ul[0]), min(br[0], image_size[1]) - ul[0]
@@ -884,20 +1014,21 @@ class FewShotSeg(nn.Module):
             img_y = max(0, ul[1]), min(br[1], image_size[0])
 
             # Apply the Gaussian to the heatmap
-            heatmap[keypoint_id][img_y[0]:img_y[1], img_x[0]:img_x[1]] = \
-                g[g_y[0]:g_y[1], g_x[0]:g_x[1]]
+            heatmap[keypoint_id][img_y[0] : img_y[1], img_x[0] : img_x[1]] = g[
+                g_y[0] : g_y[1], g_x[0] : g_x[1]
+            ]
 
         return heatmap
 
-
     def get_max_preds(self, batch_heatmaps):
-        '''
+        """
         get predictions from score maps
         heatmaps: numpy.ndarray([batch_size, num_joints, height, width])
-        '''
-        assert isinstance(batch_heatmaps, np.ndarray), \
-            'batch_heatmaps should be numpy.ndarray'
-        assert batch_heatmaps.ndim == 4, 'batch_images should be 4-ndim'
+        """
+        assert isinstance(
+            batch_heatmaps, np.ndarray
+        ), "batch_heatmaps should be numpy.ndarray"
+        assert batch_heatmaps.ndim == 4, "batch_images should be 4-ndim"
 
         batch_size = batch_heatmaps.shape[0]
         num_joints = batch_heatmaps.shape[1]
@@ -919,7 +1050,7 @@ class FewShotSeg(nn.Module):
 
         preds *= pred_mask
         return preds, maxvals
-    
+
     def get_keypoint_predictions(self, output):
         """
         Get the predicted keypoints from the output.
@@ -932,11 +1063,8 @@ class FewShotSeg(nn.Module):
         batch_heatmaps = output.cpu().detach().numpy()
 
         preds, _ = self.get_max_preds(batch_heatmaps)
-        
+
         return preds
-
-
-
 
     def compute_correlation(self, skp, query_feature_map):
         """
@@ -949,15 +1077,12 @@ class FewShotSeg(nn.Module):
         """
 
         skp = skp.view(1, self.feature_dim, 1, 1)
-        skp = F.normalize(skp, dim=1)  
-        query_feature_map = F.normalize(query_feature_map, dim=1)  
+        skp = F.normalize(skp, dim=1)
+        query_feature_map = F.normalize(query_feature_map, dim=1)
         cosine_similarity_map = query_feature_map * skp
-        
+
         return cosine_similarity_map
 
-   
-
-    
     def attention_suppress(self, qry_fts, spt_fg_proto):
         """
         Apply attention suppression to the query features based on the support foreground prototypes.
@@ -968,11 +1093,10 @@ class FewShotSeg(nn.Module):
             torch.Tensor: Suppressed query features of shape (b, c, h, w).
         """
 
-
         b, c, h, w = qry_fts.shape
         proto_expanded = spt_fg_proto.view(b, c, 1, 1)  # [b, c, 1, 1]
         similarity = F.cosine_similarity(qry_fts, proto_expanded, dim=1)  # [b, h, w]
         attention_weights = 1 - similarity.unsqueeze(1)  # [b, 1, h, w]
         suppressed_qry_fts = qry_fts * attention_weights  # [b, c, h, w]
-        
+
         return suppressed_qry_fts

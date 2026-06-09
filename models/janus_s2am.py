@@ -11,6 +11,7 @@ implements the geometry/prototype rules used by JANUS-S²AM:
 All point coordinates returned by this file follow SAM convention: ``[x, y]`` in
 pixel coordinates of the 256x256 image used by FoB-SAM.
 """
+
 from __future__ import annotations
 
 import math
@@ -89,7 +90,9 @@ def squeeze_points(points: Any) -> np.ndarray:
     return arr.reshape(-1, 2).astype(np.float32)
 
 
-def merge_points(*point_groups: Any, image_shape: Optional[Tuple[int, int]] = None) -> np.ndarray:
+def merge_points(
+    *point_groups: Any, image_shape: Optional[Tuple[int, int]] = None
+) -> np.ndarray:
     """Merge multiple point groups into one [1,K,2] prompt array."""
     pts: List[np.ndarray] = []
     for group in point_groups:
@@ -266,7 +269,11 @@ def distance_suppression_mask(
     """Return True where points are far enough from avoid_points."""
     h, w = int(shape[0]), int(shape[1])
     keep = np.ones((h, w), dtype=bool)
-    pts = squeeze_points(avoid_points) if avoid_points is not None else np.zeros((0, 2), dtype=np.float32)
+    pts = (
+        squeeze_points(avoid_points)
+        if avoid_points is not None
+        else np.zeros((0, 2), dtype=np.float32)
+    )
     if pts.size == 0 or radius <= 0:
         return keep
     yy, xx = np.mgrid[0:h, 0:w]
@@ -311,7 +318,9 @@ def nms_topk_points(
     if not np.any(candidate):
         if not fallback_to_argmax:
             return np.zeros((0, 2), dtype=np.float32)
-        candidate = finite & distance_suppression_mask((h, w), avoid_points, max(0, avoid_radius // 2))
+        candidate = finite & distance_suppression_mask(
+            (h, w), avoid_points, max(0, avoid_radius // 2)
+        )
         if not np.any(candidate):
             candidate = finite
 
@@ -463,7 +472,9 @@ def mine_sam_induced_hard_background(
 
     score = normalize_np(hbg)
     if mask.shape != score.shape:
-        mask = cv2.resize(mask, (score.shape[1], score.shape[0]), interpolation=cv2.INTER_NEAREST)
+        mask = cv2.resize(
+            mask, (score.shape[1], score.shape[0]), interpolation=cv2.INTER_NEAREST
+        )
 
     fg_score = prompt_meta.get("fg_score", None)
     bg_score = prompt_meta.get("bg_score", None)
