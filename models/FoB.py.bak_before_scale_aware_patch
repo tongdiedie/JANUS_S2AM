@@ -659,68 +659,11 @@ class FewShotSeg(nn.Module):
             "shape_complexity": 1.0,
         }
 
-
-    def _resolve_janus_policy(self, support_mask, img_size):
-        # Resolve sparse JANUS prompt policy from support-mask scale.
-        default_policy = {
-            "policy_name": "default_sparse",
-            "fg_points": int(cfg_get(self.args, "janus_fg_points", 1)),
-            "base_bg_points": int(cfg_get(self.args, "janus_base_bg_points", 2)),
-            "hard_background": bool(cfg_get(self.args, "janus_hard_background", True)),
-            "hard_bg_ratio": float(cfg_get(self.args, "janus_hard_bg_ratio", 0.20)),
-            "hard_bg_max_points": int(cfg_get(self.args, "janus_hard_bg_max_points", 2)),
-            "hbg_min_distance": int(cfg_get(self.args, "janus_hbg_min_distance", 14)),
-            "hbg_avoid_radius": int(cfg_get(self.args, "janus_hbg_avoid_fg_radius", 18)),
-            "sam_refine_points": int(cfg_get(self.args, "janus_sam_refine_points", 1)),
-            "sam_mined_points": int(cfg_get(self.args, "janus_sam_mined_points", 1)),
-            "sam_mined_min_distance": int(cfg_get(self.args, "janus_sam_mined_min_distance", 20)),
-            "sam_mined_avoid_radius": int(cfg_get(self.args, "janus_sam_mined_avoid_radius", 28)),
-        }
-
-        if not bool(cfg_get(self.args, "janus_scale_aware_policy", False)):
-            return default_policy
-
-        mask = support_mask.detach().float()
-        area_ratio = float((mask > 0.5).float().mean().item())
-        large_thresh = float(cfg_get(self.args, "janus_large_area_thresh", 0.08))
-
-        if area_ratio >= large_thresh:
-            return {
-                "policy_name": "large_conservative",
-                "fg_points": int(cfg_get(self.args, "janus_large_fg_points", 1)),
-                "base_bg_points": int(cfg_get(self.args, "janus_large_base_bg_points", 3)),
-                "hard_background": bool(cfg_get(self.args, "janus_large_hard_background", False)),
-                "hard_bg_ratio": float(cfg_get(self.args, "janus_large_hard_bg_ratio", 0.0)),
-                "hard_bg_max_points": int(cfg_get(self.args, "janus_large_hard_bg_max_points", 0)),
-                "hbg_min_distance": int(cfg_get(self.args, "janus_hbg_min_distance", 14)),
-                "hbg_avoid_radius": int(cfg_get(self.args, "janus_hbg_avoid_fg_radius", 18)),
-                "sam_refine_points": int(cfg_get(self.args, "janus_large_sam_refine_points", 1)),
-                "sam_mined_points": int(cfg_get(self.args, "janus_large_sam_mined_points", 1)),
-                "sam_mined_min_distance": int(cfg_get(self.args, "janus_large_sam_mined_min_distance", 28)),
-                "sam_mined_avoid_radius": int(cfg_get(self.args, "janus_large_sam_mined_avoid_radius", 40)),
-            }
-
-        return {
-            "policy_name": "small_sparse_hbg",
-            "fg_points": int(cfg_get(self.args, "janus_small_fg_points", 1)),
-            "base_bg_points": int(cfg_get(self.args, "janus_small_base_bg_points", 2)),
-            "hard_background": bool(cfg_get(self.args, "janus_small_hard_background", True)),
-            "hard_bg_ratio": float(cfg_get(self.args, "janus_small_hard_bg_ratio", 0.20)),
-            "hard_bg_max_points": int(cfg_get(self.args, "janus_small_hard_bg_max_points", 2)),
-            "hbg_min_distance": int(cfg_get(self.args, "janus_hbg_min_distance", 14)),
-            "hbg_avoid_radius": int(cfg_get(self.args, "janus_hbg_avoid_fg_radius", 18)),
-            "sam_refine_points": int(cfg_get(self.args, "janus_small_sam_refine_points", 1)),
-            "sam_mined_points": int(cfg_get(self.args, "janus_small_sam_mined_points", 1)),
-            "sam_mined_min_distance": int(cfg_get(self.args, "janus_small_sam_mined_min_distance", 20)),
-            "sam_mined_avoid_radius": int(cfg_get(self.args, "janus_small_sam_mined_avoid_radius", 28)),
-        }
-
     def _build_prompt_bundle(
         self, base_bg_points, qry_pred_coarse, mutual_maps, support_mask, img_size
     ):
         """Assemble positive foreground and hard negative background prompts."""
         h, w = int(img_size[0]), int(img_size[1])
-        policy = self._resolve_janus_policy(support_mask, img_size)
         coarse_np = qry_pred_coarse[0, 0].detach().cpu().numpy()
         fg_np = mutual_maps["s_fg_norm"][0, 0].detach().cpu().numpy()
         bg_np = mutual_maps["s_bg_norm"][0, 0].detach().cpu().numpy()
@@ -728,7 +671,7 @@ class FewShotSeg(nn.Module):
 
         original_pos = self.uniform_sample_from_prob(
             qry_pred_coarse[0, 0],
-            num_samples=int(policy["fg_points"]),
+            num_samples=int(cfg_get(self.args, "janus_fg_points", 6)),
             threshold=float(cfg_get(self.args, "janus_fg_prob_threshold", 0.96)),
         )
         original_pos_pts = squeeze_points(original_pos)
@@ -737,7 +680,7 @@ class FewShotSeg(nn.Module):
                 pfg_np,
                 fg_score=fg_np,
                 coarse_mask=coarse_np,
-                num_points=int(policy["fg_points"]),
+                num_points=int(cfg_get(self.args, "janus_fg_points", 6)),
                 min_distance=int(cfg_get(self.args, "janus_fg_min_distance", 18)),
             )
         else:
@@ -766,13 +709,17 @@ class FewShotSeg(nn.Module):
             high=int(cfg_get(self.args, "janus_bg_points_high", 16)),
             threshold_low=float(cfg_get(self.args, "janus_compactness_low", 1.5)),
             threshold_high=float(cfg_get(self.args, "janus_compactness_high", 3.0)),
-            fallback=int(policy["base_bg_points"]),
+            fallback=int(cfg_get(self.args, "janus_base_bg_points", 10)),
         )
 
-        if self.janus_enabled and bool(policy["hard_background"]):
-            hard_ratio = float(policy["hard_bg_ratio"])
+        if self.janus_enabled and self.use_hard_background:
+            hard_ratio = float(cfg_get(self.args, "janus_hard_bg_ratio", 0.40))
             hard_budget = max(1, int(round(total_bg * hard_ratio)))
-            hard_budget = min(hard_budget, int(policy["hard_bg_max_points"]), total_bg)
+            hard_budget = min(
+                hard_budget,
+                int(cfg_get(self.args, "janus_hard_bg_max_points", 8)),
+                total_bg,
+            )
         else:
             hard_budget = 0
         base_budget = max(0, total_bg - hard_budget)
@@ -799,8 +746,8 @@ class FewShotSeg(nn.Module):
                 num_points=hard_budget,
                 coarse_mask=coarse_np,
                 foreground_points=pos_pts,
-                min_distance=int(policy["hbg_min_distance"]),
-                avoid_radius=int(policy["hbg_avoid_radius"]),
+                min_distance=int(cfg_get(self.args, "janus_hbg_min_distance", 14)),
+                avoid_radius=int(cfg_get(self.args, "janus_hbg_avoid_fg_radius", 18)),
                 prefer_mask_boundary=bool(
                     cfg_get(self.args, "janus_hbg_prefer_boundary", True)
                 ),
@@ -811,7 +758,7 @@ class FewShotSeg(nn.Module):
         neg_points = merge_points(base_neg_pts, hard_neg_pts, image_shape=(h, w))
         pos_points = ensure_points_array(pos_pts)
         sam_refine_points = ensure_points_array(
-            hard_neg_pts[: int(policy["sam_refine_points"])]
+            hard_neg_pts[: int(cfg_get(self.args, "janus_sam_refine_points", 4))]
         )
 
         return {
@@ -828,11 +775,11 @@ class FewShotSeg(nn.Module):
             "coarse_mask": normalize_np(coarse_np),
             "curvature_score": normalize_np(curv_np),
             "k_bg": int(total_bg),
-            "shape_complexity": float(compactness), "scale_policy": policy.get("policy_name", "default_sparse"), "sam_mined_points": int(policy["sam_mined_points"]), "sam_mined_min_distance": int(policy["sam_mined_min_distance"]), "sam_mined_avoid_radius": int(policy["sam_mined_avoid_radius"]),
+            "shape_complexity": float(compactness),
             "janus_flags": {
                 "mutual_prompting": bool(self.use_mutual_prompting),
                 "hard_background": bool(self.use_hard_background),
-                "curvature_allocation": bool(self.use_curvature_allocation), "effective_policy": policy.get("policy_name", "default_sparse"),
+                "curvature_allocation": bool(self.use_curvature_allocation),
             },
         }
 

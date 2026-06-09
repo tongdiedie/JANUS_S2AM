@@ -209,9 +209,9 @@ class SAM(nn.Module):
         mined_points = mine_sam_induced_hard_background(
             initial_mask=mask0,
             prompt_meta=prompt_meta,
-            num_points=int(prompt_meta.get("sam_mined_points", cfg_get(config, "janus_sam_mined_points", 4))),
-            min_distance=int(prompt_meta.get("sam_mined_min_distance", cfg_get(config, "janus_sam_mined_min_distance", 14))),
-            avoid_radius=int(prompt_meta.get("sam_mined_avoid_radius", cfg_get(config, "janus_sam_mined_avoid_radius", 18))),
+            num_points=int(cfg_get(config, "janus_sam_mined_points", 4)),
+            min_distance=int(cfg_get(config, "janus_sam_mined_min_distance", 14)),
+            avoid_radius=int(cfg_get(config, "janus_sam_mined_avoid_radius", 18)),
         )
         corrective_points = merge_points(
             prompt_meta.get("sam_refine_points", None),
@@ -232,17 +232,4 @@ class SAM(nn.Module):
             mask_input=mask_input,
             return_logits=return_logits,
         )
-        area0 = float(np.asarray(mask0).astype(np.float32).sum())
-        area1 = float(np.asarray(mask1).astype(np.float32).sum())
-        area_ratio = area1 / max(area0, 1.0) if area0 > 1.0 else 1.0
-
-        score_margin = float(cfg_get(config, "janus_refine_score_margin", 0.02))
-        min_area_ratio = float(cfg_get(config, "janus_refine_min_area_ratio", 0.35))
-        max_area_ratio = float(cfg_get(config, "janus_refine_max_area_ratio", 2.50))
-
-        accept_refine = (
-            float(score1) >= float(score0) - score_margin
-            and min_area_ratio <= area_ratio <= max_area_ratio
-        )
-
-        return mask1 if accept_refine else mask0
+        return mask1

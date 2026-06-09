@@ -1,24 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ============================================================
-# JANUS-S2AM CHAOST2 class-adaptive sparse evaluation
-#
-# Policy:
-#   LIVER:
-#     conservative prompting, no hard-background mining
-#   RK/LK/SPLEEN:
-#     sparse hard-background mining + sparse SAM refinement
-#
-# Examples:
-#   FOLD=0 SUPP_IDX=2 RELOAD_MODEL_PATH=/path/to/39000.pth \
-#     bash scripts/janus/test_CHAOST2_class_adaptive.sh
-#
-# Note:
-#   For multi-fold testing, pass one fold and its matching checkpoint at a time.
-#   Do not use a cv0 checkpoint to test cv1.
-# ============================================================
-
 GPU_ID=${GPU_ID:-0}
 export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-$GPU_ID}
 

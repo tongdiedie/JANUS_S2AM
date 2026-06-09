@@ -92,17 +92,17 @@ def cfg():
     janus_enabled = True
     janus_mutual_prompting = True
     janus_hard_background = True
-    janus_curvature_allocation = False
+    janus_curvature_allocation = True
     janus_sam_refinement = True
 
     # Foreground-background mutual prompting.
     janus_base_prompt_points = 10
-    janus_fg_points = 1
+    janus_fg_points = 6
     janus_fg_prob_threshold = 0.96
     janus_fg_min_distance = 18
 
     # Shape/curvature-aware background allocation: C=P^2/(4*pi*A).
-    janus_base_bg_points = 2
+    janus_base_bg_points = 10
     janus_bg_points_low = 6
     janus_bg_points_mid = 10
     janus_bg_points_high = 16
@@ -113,8 +113,8 @@ def cfg():
     janus_curvature_blur = 7
 
     # Prototype-confusion hard background score.
-    janus_hard_bg_ratio = 0.20
-    janus_hard_bg_max_points = 2
+    janus_hard_bg_ratio = 0.40
+    janus_hard_bg_max_points = 8
     janus_hbg_min_distance = 14
     janus_hbg_avoid_fg_radius = 18
     janus_hbg_prefer_boundary = True
@@ -124,13 +124,13 @@ def cfg():
     janus_fg_core_penalty = 0.50
 
     # SAM-induced second-pass corrective prompt mining.
-    janus_sam_refine_points = 1
-    janus_sam_mined_points = 1
-    janus_sam_mined_min_distance = 20
-    janus_sam_mined_avoid_radius = 28
+    janus_sam_refine_points = 4
+    janus_sam_mined_points = 4
+    janus_sam_mined_min_distance = 14
+    janus_sam_mined_avoid_radius = 18
 
     # Hard-background contrastive loss.
-    janus_hbg_loss_weight = 0.05
+    janus_hbg_loss_weight = 0.10
     janus_hbg_margin = 0.20
     janus_hbg_train_pred_threshold = 0.50
     janus_hbg_train_top_quantile = 0.90
