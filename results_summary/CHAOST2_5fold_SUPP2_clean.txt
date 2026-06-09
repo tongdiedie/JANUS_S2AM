@@ -1,0 +1,22 @@
+CHAOST2 5-fold evaluation, SUPP_IDX=2, stable light JANUS setting
+
+Stable setting:
+janus_fg_points=1
+janus_base_bg_points=3
+janus_hard_background=False
+janus_curvature_allocation=False
+janus_sam_refinement=True
+janus_sam_refine_points=1
+janus_sam_mined_points=1
+janus_sam_mined_min_distance=20
+janus_sam_mined_avoid_radius=28
+
+Fold results:
+cv0: 0.38828784972429276
+cv1: 0.3719058632850647
+cv2: 0.3768513798713684
+cv3: 0.5007374882698059
+cv4: 0.3396216109395027
+
+Mean Dice: 0.3954808384180069
+Std Dice:  0.0547768507

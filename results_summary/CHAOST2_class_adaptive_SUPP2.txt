@@ -1,0 +1,36 @@
+CHAOST2 class-adaptive JANUS-S2AM, SUPP_IDX=2
+
+Policy:
+LIVER:
+  janus_fg_points=1
+  janus_base_bg_points=3
+  janus_hard_background=False
+  janus_curvature_allocation=False
+  janus_sam_refinement=True
+  janus_sam_refine_points=1
+  janus_sam_mined_points=1
+  janus_sam_mined_min_distance=28
+  janus_sam_mined_avoid_radius=40
+
+RK/LK/SPLEEN:
+  janus_fg_points=1
+  janus_base_bg_points=2
+  janus_hard_background=True
+  janus_hard_bg_ratio=0.20
+  janus_hard_bg_max_points=2
+  janus_curvature_allocation=False
+  janus_sam_refinement=True
+  janus_sam_refine_points=1
+  janus_sam_mined_points=1
+  janus_sam_mined_min_distance=20
+  janus_sam_mined_avoid_radius=28
+
+Fold Dice:
+cv0: 0.583759
+cv1: 0.456523
+cv2: 0.538015
+cv3: 0.547969
+cv4: 0.481638
+
+Mean Dice: 0.521581
+Std Dice:  0.046175
