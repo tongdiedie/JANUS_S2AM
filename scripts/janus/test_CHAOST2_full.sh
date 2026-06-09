@@ -1,16 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ============================================================
-# JANUS-S2AM testing script: test_CHAOST2_full.sh
-#
-# Usage:
-#   RELOAD_MODEL_PATH=./runs_janus/train_CHAOST2_full/FSMIS_train_CHAOST2_cv0/5/snapshots/39000.pth bash scripts/janus/test_CHAOST2_full.sh # 改成实际的模型路径
-#   FOLD=2 RELOAD_MODEL_PATH=/path/to/model.pth bash scripts/janus/test_CHAOST2_full.sh
-#   FOLDS="0 3" RELOAD_MODEL_PATH=/path/to/model.pth bash scripts/janus/test_CHAOST2_full.sh
-#   FOLD=0 SUPP_IDX=2 RELOAD_MODEL_PATH=/path/to/model.pth bash scripts/janus/test_CHAOST2_full.sh
-# ============================================================
-
 GPU_ID=${GPU_ID:-0}
 export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-$GPU_ID}
 
@@ -28,28 +18,19 @@ LR_STEP_GAMMA=${LR_STEP_GAMMA:-0.98}
 N_PART=${N_PART:-3}
 SEED=${SEED:-2025}
 
-# Priority:
-#   FOLD=2        -> single fold
-#   FOLDS="0 1"   -> selected folds
-#   neither set   -> all default folds
 if [[ -n "${FOLD:-}" ]]; then
   FOLDS_STR="$FOLD"
 else
   FOLDS_STR=${FOLDS:-"0 1 2 3 4"}
 fi
 
-read -ra FOLDS_ARR <<< "$FOLDS_STR"
-
-# Priority:
-#   SUPP_IDX=2        -> single support index
-#   SUPPORTS="0 1 2"  -> selected support indices
-#   neither set       -> default support 2
 if [[ -n "${SUPP_IDX:-}" ]]; then
   SUPPORTS_STR="$SUPP_IDX"
 else
   SUPPORTS_STR=${SUPPORTS:-"2"}
 fi
 
+read -ra FOLDS_ARR <<< "$FOLDS_STR"
 read -ra SUPPORTS_ARR <<< "$SUPPORTS_STR"
 
 echo "============================================================"
@@ -71,7 +52,7 @@ echo "============================================================"
 for CV_FOLD in "${FOLDS_ARR[@]}"; do
   for SUPP in "${SUPPORTS_ARR[@]}"; do
     echo ""
-    echo "==================== Testing fold $CV_FOLD support $SUPP ===================="
+    echo "==================== Testing fold ${CV_FOLD}, support ${SUPP} ===================="
 
     python3 test.py with \
       mode=test \
@@ -83,7 +64,7 @@ for CV_FOLD in "${FOLDS_ARR[@]}"; do
       save_snapshot_every=$SAVE_SNAPSHOT_EVERY \
       lr_step_gamma=$LR_STEP_GAMMA \
       eval_fold=$CV_FOLD \
-    supp_idx=$SUPP \
+      supp_idx=$SUPP \
       test_label=[1,2,3,4] \
       n_part=$N_PART \
       seed=$SEED \

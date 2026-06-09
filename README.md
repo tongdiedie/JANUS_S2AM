@@ -1,4 +1,4 @@
-# JANUS-S²AM: Curvature-aware Foreground/Hard-Background Prompting on FoB-SAM
+# JANUS-S²AM: Scale-aware Sparse Foreground/Hard-Background Prompting on FoB-SAM
 
 This repository is a modified FoB-SAM codebase.  The original background-centric FoB prompt generator is extended into **JANUS-S²AM**, a foreground-background mutually calibrated prompt framework for few-shot medical image segmentation.
 
@@ -19,6 +19,54 @@ support mask -> foreground/background prototypes
 ```
 
 ---
+
+
+
+## Current Stable CHAOST2 Protocol
+
+The current stable protocol is **class-adaptive sparse JANUS-S²AM** rather than dense curvature prompting.
+
+### CHAOST2, SUPP_IDX=2
+
+| Method | cv0 | cv1 | cv2 | cv3 | cv4 | Mean | Std |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| FoB-compatible baseline | 0.2040 | 0.1744 | 0.1969 | 0.2873 | 0.1797 | 0.2085 | 0.0410 |
+| JANUS-S²AM class-adaptive sparse | 0.5838 | 0.4565 | 0.5380 | 0.5480 | 0.4816 | 0.5216 | 0.0462 |
+
+### Stable policy
+
+For **LIVER**, JANUS-S²AM uses conservative prompting:
+
+```bash
+janus_fg_points=1
+janus_base_bg_points=3
+janus_hard_background=False
+janus_curvature_allocation=False
+janus_sam_refinement=True
+janus_sam_refine_points=1
+janus_sam_mined_points=1
+janus_sam_mined_min_distance=28
+janus_sam_mined_avoid_radius=40
+```
+
+For **RK/LK/SPLEEN**, JANUS-S²AM uses sparse hard-background correction:
+
+```bash
+janus_fg_points=1
+janus_base_bg_points=2
+janus_hard_background=True
+janus_hard_bg_ratio=0.20
+janus_hard_bg_max_points=2
+janus_curvature_allocation=False
+janus_sam_refinement=True
+janus_sam_refine_points=1
+janus_sam_mined_points=1
+janus_sam_mined_min_distance=20
+janus_sam_mined_avoid_radius=28
+```
+
+The curvature-aware allocation module is kept for ablation studies, but it is not the default CHAOST2 policy because dense/curvature-biased background prompts can over-suppress small or ambiguous organs.
+
 
 ## 1. What changed
 
