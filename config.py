@@ -155,6 +155,8 @@ def cfg():
     janus_small_sam_mined_min_distance = 20
     janus_small_sam_mined_avoid_radius = 28
 
+    janus_debug_policy = False
+
     optim_type = "sgd"
     optim = {
         "lr": 1e-4,

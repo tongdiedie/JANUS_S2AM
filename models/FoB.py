@@ -684,6 +684,14 @@ class FewShotSeg(nn.Module):
         area_ratio = float((mask > 0.5).float().mean().item())
         large_thresh = float(cfg_get(self.args, "janus_large_area_thresh", 0.08))
 
+        if bool(cfg_get(self.args, "janus_debug_policy", False)):
+            policy_name = "large_conservative" if area_ratio >= large_thresh else "small_sparse_hbg"
+            print(
+                f"[JANUS policy] area_ratio={area_ratio:.6f}, "
+                f"large_thresh={large_thresh:.6f}, "
+                f"policy={policy_name}"
+            )
+
         if area_ratio >= large_thresh:
             return {
                 "policy_name": "large_conservative",
