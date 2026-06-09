@@ -1,0 +1,50 @@
+CHAOST2, SUPP_IDX=2
+
+FoB-compatible baseline:
+cv0: 0.2039689533
+cv1: 0.1744293533
+cv2: 0.1969170496
+cv3: 0.2873022854
+cv4: 0.1797124706
+Mean: 0.208466
+Std:  0.040966
+
+JANUS-S2AM class-adaptive sparse prompting:
+cv0: 0.583759
+cv1: 0.456523
+cv2: 0.538015
+cv3: 0.547969
+cv4: 0.481638
+Mean: 0.521581
+Std:  0.046175
+
+Absolute gain:
++0.313115 Dice
+
+Relative gain:
+approximately 2.50x over FoB-compatible baseline in this local protocol.
+
+Policy:
+LIVER:
+  janus_fg_points=1
+  janus_base_bg_points=3
+  janus_hard_background=False
+  janus_curvature_allocation=False
+  janus_sam_refinement=True
+  janus_sam_refine_points=1
+  janus_sam_mined_points=1
+  janus_sam_mined_min_distance=28
+  janus_sam_mined_avoid_radius=40
+
+RK/LK/SPLEEN:
+  janus_fg_points=1
+  janus_base_bg_points=2
+  janus_hard_background=True
+  janus_hard_bg_ratio=0.20
+  janus_hard_bg_max_points=2
+  janus_curvature_allocation=False
+  janus_sam_refinement=True
+  janus_sam_refine_points=1
+  janus_sam_mined_points=1
+  janus_sam_mined_min_distance=20
+  janus_sam_mined_avoid_radius=28
