@@ -1,0 +1,10 @@
+CHAOST2 JANUS-S2AM class-adaptive sparse prompting, SUPP_IDX=2
+
+cv0: 0.583759
+cv1: 0.456523
+cv2: 0.538015
+cv3: 0.547969
+cv4: 0.481638
+
+Mean Dice: 0.521581
+Std Dice:  0.046175
